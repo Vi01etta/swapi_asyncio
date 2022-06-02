@@ -1,20 +1,18 @@
-from sqlalchemy import Column, String, Integer, create_engine
-import asyncio
-import aiohttp
+from contextlib import asynccontextmanager
 
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.dialects.postgresql import insert
 
 import app
+from sqlalchemy import Column, String, Integer
+import asyncio
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
 
-conn = 'postgresql://admin:1234@localhost/starwars'
-engine = create_engine(conn)
-r = engine.connect()
 Base = declarative_base()
-Session = sessionmaker(bind=engine)
 
 
-class CharModel(Base):
+class Characters(Base):
     __tablename__ = 'characters'
     id = Column(Integer, primary_key=True)
     birth_year = Column(String())
@@ -32,28 +30,43 @@ class CharModel(Base):
     vehicles = Column(String())
 
 
-Base.metadata.create_all(engine)
+@asynccontextmanager
+async def async_main():
+    engine = create_async_engine('postgresql+asyncpg://admin:1234@localhost/starwars', echo=True)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+    async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+    async with async_session() as session:
+        async with session.begin():
+            yield session
+
 
 
 async def post():
-    new_ad_data = await app.main()
-    # как подключиться к базе данных
-    query_data = {'id' : int(new_ad_data['url'].split('/')[-2]),
-        'birth_year' : new_ad_data['birth_year'],
-        'eye_color' : new_ad_data['eye_color'],
-        'films' : ', '.join(new_ad_data['films']),
-        'gender' : new_ad_data['gender'],
-        'hair_color' : new_ad_data['hair_color'],
-        'height' : new_ad_data['height'],
-        'homeworld' : new_ad_data['homeworld'],
-        'mass' : new_ad_data['mass'],
-        'name' : new_ad_data['name'],
-        'species' : ', '.join(new_ad_data['species']),
-        'skin_color' : new_ad_data['skin_color'],
-        'starships' : ', '.join(new_ad_data['starships']),
-        'vehicles' : ', '.join(new_ad_data['vehicles'])
-    }
-    await CharModel.insert(query_data).execute()
+    async with async_main() as session:
+            for hero in app.heroes:
+                if 'name' in hero:
+                    query_data = {'id': int(hero['url'].split('/')[-2]),
+                                  'birth_year': hero['birth_year'],
+                                  'eye_color': hero['eye_color'],
+                                  'films': ', '.join(hero['films']),
+                                  'gender': hero['gender'],
+                                  'hair_color': hero['hair_color'],
+                                  'height': hero['height'],
+                                  'homeworld': hero['homeworld'],
+                                  'mass': hero['mass'],
+                                  'name': hero['name'],
+                                  'species': ', '.join(hero['species']),
+                                  'skin_color': hero['skin_color'],
+                                  'starships': ', '.join(hero['starships']),
+                                  'vehicles': ', '.join(hero['vehicles'])
+                                  }
+                    query = insert(Characters).values(query_data)
+                    await session.execute(query)
+    await session.commit()
 
 
 asyncio.run(post())

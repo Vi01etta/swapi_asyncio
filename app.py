@@ -1,10 +1,11 @@
 import aiohttp
+
 import asyncio
 from more_itertools import chunked
 
 URL = 'https://swapi.dev/api/people/'
 
-MAX = 100
+MAX = 80
 PARTITION = 10
 
 
@@ -23,9 +24,11 @@ async def get_people(all_ids, partition, session):
 
 async def main():
     async with aiohttp.ClientSession() as session:
+        people_data = []
         async for people in get_people(range(1, MAX + 1), PARTITION, session):
-            # print(people['url'].split('/')[-2])
-            return people
+            people_data.append(people)
+        return people_data
 
 
-asyncio.run(main())
+
+heroes = asyncio.run(main())
