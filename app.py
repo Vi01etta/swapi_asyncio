@@ -5,7 +5,7 @@ from more_itertools import chunked
 
 URL = 'https://swapi.dev/api/people/'
 
-MAX = 80
+MAX = 100
 PARTITION = 10
 
 

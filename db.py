@@ -30,23 +30,18 @@ class Characters(Base):
     vehicles = Column(String())
 
 
-@asynccontextmanager
+engine = create_async_engine('postgresql+asyncpg://admin:1234@localhost/starwars', echo=True)
+
+async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+
 async def async_main():
-    engine = create_async_engine('postgresql+asyncpg://admin:1234@localhost/starwars', echo=True)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 
-    async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-
     async with async_session() as session:
         async with session.begin():
-            yield session
-
-
-
-async def post():
-    async with async_main() as session:
             for hero in app.heroes:
                 if 'name' in hero:
                     query_data = {'id': int(hero['url'].split('/')[-2]),
@@ -66,7 +61,7 @@ async def post():
                                   }
                     query = insert(Characters).values(query_data)
                     await session.execute(query)
-    await session.commit()
+        await session.commit()
 
 
-asyncio.run(post())
+asyncio.run(async_main())
